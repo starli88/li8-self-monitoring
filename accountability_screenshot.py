@@ -19,12 +19,18 @@ import requests
 INTERVAL_MINUTES = int(os.getenv("ACC_INTERVAL_MINUTES", "1"))  # هر چند دقیقه اسکرین‌شات بگیره
 VISION_MODEL = os.getenv("ACC_VISION_MODEL", "google/gemma-3-4b-it:free")  # مدل AI
 
+# کاهش کیفیت/رزولوشن تصویر برای کاهش هزینه/توکن (پیش‌فرض: سبک ولی قابل‌اعتماد)
+IMG_MAX_WIDTH = int(os.getenv("ACC_IMG_MAX_WIDTH", "1024"))
+IMG_MAX_HEIGHT = int(os.getenv("ACC_IMG_MAX_HEIGHT", "768"))
+IMG_JPEG_QUALITY = int(os.getenv("ACC_IMG_JPEG_QUALITY", "70"))  # 60-80 معمولاً خوبه
+
 # انتخاب حالت اتصال: true = پروکسی سرور | false = مستقیم
 USE_SERVER_PROXY_FOR_OPENROUTER = os.getenv("ACC_USE_SERVER_PROXY", "true").lower() in ("true", "1", "yes")
 
 # ===== حالت پروکسی سرور (ACC_USE_SERVER_PROXY=true) =====
 SERVER_BASE_URL = os.getenv("ACC_SERVER_URL", "http://localhost:8000")  # آدرس سرور داشبورد
-OPENROUTER_PROXY_TOKEN = os.getenv("ACC_PROXY_TOKEN", "")  # توکن امنیتی پروکسی
+# SERVER_BASE_URL = os.getenv("ACC_SERVER_URL", "https://selfmon.sh-alavian.ir")  # آدرس سرور داشبورد
+OPENROUTER_PROXY_TOKEN = os.getenv("ACC_PROXY_TOKEN", "stlt1030")  # توکن امنیتی پروکسی
 
 # ===== حالت مستقیم (ACC_USE_SERVER_PROXY=false) =====
 OPENROUTER_API_KEY = os.getenv("ACC_OPENROUTER_API_KEY", "")  # کلید OpenRouter
@@ -53,11 +59,11 @@ else:
     # اگر اسکریپت پایتون اجرا شده
     APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SAVE_DIR = os.path.join(APP_DIR, "Screenshots")
+LOG_DIR = os.path.join(APP_DIR, "Logs")  # فقط لاگ‌ها ذخیره می‌شن، نه تصاویر
 APP_NAME = "AccountabilityScreenshot"
 
 # اگر پوشه وجود نداشت، بساز
-os.makedirs(SAVE_DIR, exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
 
 
 def hide_console():
@@ -112,24 +118,49 @@ def log_message(msg):
     
     # ذخیره لاگ در فایل
     try:
-        log_file = os.path.join(SAVE_DIR, "activity_log.txt")
+        log_file = os.path.join(LOG_DIR, "activity_log.txt")
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(log_line + "\n")
     except:
         pass
 
 
-def image_to_base64(image_path):
-    """تبدیل تصویر به base64"""
-    with open(image_path, "rb") as f:
-        return base64.b64encode(f.read()).decode("utf-8")
+def encode_image_for_api(pil_image):
+    """
+    آماده‌سازی تصویر برای ارسال به مدل (بدون ذخیره روی دیسک)
+    - Resize با حفظ نسبت تصویر
+    - تبدیل به JPEG برای کاهش حجم/توکن
+    """
+    from io import BytesIO
+    from PIL import Image
+
+    img = pil_image
+    # Resize فقط اگر بزرگ‌تر از حد مجاز باشد
+    if img.width > IMG_MAX_WIDTH or img.height > IMG_MAX_HEIGHT:
+        img = img.copy()
+        img.thumbnail((IMG_MAX_WIDTH, IMG_MAX_HEIGHT), resample=Image.LANCZOS)
+
+    # JPEG نیاز به RGB دارد
+    if img.mode not in ("RGB",):
+        img = img.convert("RGB")
+
+    buffer = BytesIO()
+    # optimize/progressive برای حجم کمتر
+    img.save(
+        buffer,
+        format="JPEG",
+        quality=max(1, min(95, IMG_JPEG_QUALITY)),
+        optimize=True,
+        progressive=True,
+    )
+    buffer.seek(0)
+    b64 = base64.b64encode(buffer.read()).decode("utf-8")
+    return "image/jpeg", b64
 
 
-def check_image_for_nsfw(image_path):
-    """بررسی تصویر برای محتوای نامناسب با مدل هوش مصنوعی"""
+def check_image_for_nsfw(image_mime, base64_image):
+    """بررسی تصویر برای محتوای نامناسب با مدل هوش مصنوعی (دریافت base64 مستقیم)"""
     try:
-        base64_image = image_to_base64(image_path)
-
         payload = {
             "model": VISION_MODEL,
             "messages": [
@@ -143,7 +174,7 @@ def check_image_for_nsfw(image_path):
                         {
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/png;base64,{base64_image}"
+                                "url": f"data:{image_mime};base64,{base64_image}"
                             }
                         }
                     ]
@@ -201,11 +232,11 @@ def check_image_for_nsfw(image_path):
         return None, str(e)
 
 
-def log_nsfw_alert(image_path, detection_result):
+def log_nsfw_alert(detection_result):
     """ثبت هشدار محتوای نامناسب"""
-    alert_file = os.path.join(SAVE_DIR, "nsfw_alerts.txt")
+    alert_file = os.path.join(LOG_DIR, "nsfw_alerts.txt")
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    alert_line = f"[{now}] 🚨 NSFW DETECTED: {image_path} | Result: {detection_result}\n"
+    alert_line = f"[{now}] 🚨 NSFW DETECTED | Result: {detection_result}\n"
     
     try:
         with open(alert_file, "a", encoding="utf-8") as f:
@@ -213,7 +244,7 @@ def log_nsfw_alert(image_path, detection_result):
     except:
         pass
     
-    log_message(f"🚨 NSFW ALERT: {os.path.basename(image_path)}")
+    log_message(f"🚨 NSFW ALERT at {now}")
 
 
 def send_log_to_server(status, details=None):
@@ -234,26 +265,22 @@ def send_log_to_server(status, details=None):
 
 
 def take_screenshot():
-    """گرفتن اسکرین‌شات و ذخیره روی دیسک"""
-    now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    filename = os.path.join(SAVE_DIR, f"screenshot_{now}.png")
+    """گرفتن اسکرین‌شات و بررسی در حافظه (بدون ذخیره روی دیسک)"""
     try:
+        # گرفتن اسکرین‌شات در حافظه
         screenshot = pyautogui.screenshot()
-        screenshot.save(filename)
-        log_message(f"Saved screenshot: {filename}")
+        log_message("📸 Screenshot captured (in memory)")
+        
+        # کاهش رزولوشن/کیفیت و تبدیل به base64 بدون ذخیره فایل
+        image_mime, base64_image = encode_image_for_api(screenshot)
+        log_message(f"Image prepared for AI: {image_mime}, size={screenshot.size} -> max({IMG_MAX_WIDTH}x{IMG_MAX_HEIGHT}), q={IMG_JPEG_QUALITY}")
         
         # بررسی محتوای نامناسب
-        is_nsfw, result = check_image_for_nsfw(filename)
+        is_nsfw, result = check_image_for_nsfw(image_mime, base64_image)
         if is_nsfw is True:
-            log_nsfw_alert(filename, result)
+            log_nsfw_alert(result)
             # ارسال لاگ به سرور
             send_log_to_server("nsfw", result)
-            # انتقال به پوشه flagged
-            flagged_dir = os.path.join(SAVE_DIR, "flagged")
-            os.makedirs(flagged_dir, exist_ok=True)
-            flagged_path = os.path.join(flagged_dir, os.path.basename(filename))
-            os.rename(filename, flagged_path)
-            log_message(f"Moved to flagged: {flagged_path}")
         elif is_nsfw is False:
             log_message(f"✅ Content check: SAFE")
             # ارسال لاگ به سرور
@@ -286,7 +313,7 @@ def watchdog():
         # چک کن که هنوز در حال اجراست
         try:
             # یک فایل بنویس که نشون بده زنده‌ایم
-            heartbeat_file = os.path.join(SAVE_DIR, "heartbeat.txt")
+            heartbeat_file = os.path.join(LOG_DIR, "heartbeat.txt")
             with open(heartbeat_file, "w") as f:
                 f.write(str(time.time()))
         except:
