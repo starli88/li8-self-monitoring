@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}ورود به سیستم{% endblock %}
+
+{% block content %}
+<div class="login-container">
+    <div class="login-box">
+        <h1>ورود به سیستم</h1>
+        
+        {% if error %}
+        <div class="error-message">{{ error }}</div>
+        {% endif %}
+        
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="username">نام کاربری</label>
+                <input type="text" id="username" name="username" required autofocus>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">رمز عبور</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            
+            <button type="submit" class="btn-login">ورود</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

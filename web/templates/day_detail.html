@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}جزئیات {{ day }} {{ month_name }} {{ year }}{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <header class="dashboard-header">
+        <div class="header-content">
+            <h1>جزئیات روز {{ day }} {{ month_name }} {{ year }}</h1>
+            <div class="header-info">
+                <a href="/calendar" class="btn-back">بازگشت به تقویم</a>
+                <a href="/logout" class="btn-logout">خروج</a>
+            </div>
+        </div>
+    </header>
+    
+    <main class="main-content">
+        <div class="legend">
+            <div class="legend-item">
+                <span class="legend-color safe"></span>
+                <span>سالم</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color nsfw"></span>
+                <span>محتوای نامناسب</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color no-data"></span>
+                <span>بدون داده</span>
+            </div>
+        </div>
+        
+        <div class="hours-grid" id="hours-grid">
+            <!-- Hours will be rendered by JavaScript -->
+        </div>
+        
+        <div class="hour-details" id="hour-details">
+            <h3>جزئیات ساعت انتخاب شده</h3>
+            <p class="no-selection">یک ساعت را انتخاب کنید</p>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.DAY_YEAR = {{ year }};
+    window.DAY_MONTH = {{ month }};
+    window.DAY_DAY = {{ day }};
+</script>
+<script src="/static/js/calendar.js"></script>
+{% endblock %}

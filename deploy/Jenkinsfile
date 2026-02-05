@@ -1,0 +1,82 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_REGISTRY = '127.0.0.1:5000'
+        IR_DOCKER_REGISTRY = '87.107.10.230:5000'
+        APP_NAME = 'selfmon'
+        DEPLOY_DIR = '/home/selfmon'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh """
+                    docker build -t ${DOCKER_REGISTRY}/${APP_NAME}-web:${env.BUILD_NUMBER} \
+                        -f deploy/Dockerfile .
+                    """
+                }
+            }
+        }
+        
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    // Tag for IR registry
+                    //sh "docker tag ${DOCKER_REGISTRY}/${APP_NAME}-web:${env.BUILD_NUMBER} ${IR_DOCKER_REGISTRY}/${APP_NAME}-web:${env.BUILD_NUMBER}"
+                    
+                    // Push to both registries
+                    sh "docker push ${DOCKER_REGISTRY}/${APP_NAME}-web:${env.BUILD_NUMBER}"
+                    //sh "docker push ${IR_DOCKER_REGISTRY}/${APP_NAME}-web:${env.BUILD_NUMBER}"
+                    
+                    // Tag and push as latest
+                    // sh "docker tag ${DOCKER_REGISTRY}/${APP_NAME}-web:${env.BUILD_NUMBER} ${DOCKER_REGISTRY}/${APP_NAME}-web:latest"
+                    // sh "docker tag ${DOCKER_REGISTRY}/${APP_NAME}-web:${env.BUILD_NUMBER} ${IR_DOCKER_REGISTRY}/${APP_NAME}-web:latest"
+                    // sh "docker push ${DOCKER_REGISTRY}/${APP_NAME}-web:latest"
+                    // sh "docker push ${IR_DOCKER_REGISTRY}/${APP_NAME}-web:latest"
+                }
+            }
+        }
+        
+        stage('Deploy') {
+            steps {
+                script {
+                    sh """
+                    # Create deployment directory if it doesn't exist
+                    mkdir -p ${DEPLOY_DIR}
+                    
+                    # Copy docker-compose.yml to deployment directory
+                    cp deploy/docker-compose.yml ${DEPLOY_DIR}/
+                    
+                    # Update the docker-compose.yml with the correct image tag
+                    sed -i 's|image: ${APP_NAME}-web:latest|image: ${DOCKER_REGISTRY}/${APP_NAME}-web:${env.BUILD_NUMBER}|g' ${DEPLOY_DIR}/docker-compose.yml
+                    
+                    # Deploy the application
+                    cd ${DEPLOY_DIR} && /usr/bin/docker compose pull && /usr/bin/docker compose up -d
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            // Clean up local images
+            sh "docker rmi ${DOCKER_REGISTRY}/${APP_NAME}-web:${env.BUILD_NUMBER} || true"
+            sh "docker rmi ${IR_DOCKER_REGISTRY}/${APP_NAME}-web:${env.BUILD_NUMBER} || true"
+        }
+        success {
+            echo 'Deployment completed successfully!'
+        }
+        failure {
+            echo 'Deployment failed!'
+        }
+    }
+}

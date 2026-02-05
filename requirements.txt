@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+pymongo
+jdatetime
+python-jose[cryptography]
+passlib[bcrypt]
+jinja2
+python-multipart
+pyautogui
+requests[socks]

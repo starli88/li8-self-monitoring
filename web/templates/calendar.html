@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}تقویم نظارت{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <header class="dashboard-header">
+        <div class="header-content">
+            <h1>داشبورد نظارت بر محتوا</h1>
+            <div class="header-info">
+                <span class="last-update">
+                    آخرین داده: <span id="last-update-time">در حال بارگذاری...</span>
+                </span>
+                <a href="/logout" class="btn-logout">خروج</a>
+            </div>
+        </div>
+    </header>
+    
+    <main class="main-content">
+        <div class="calendar-header">
+            <button id="prev-month" class="nav-btn">&lt;</button>
+            <h2 id="month-title"></h2>
+            <button id="next-month" class="nav-btn">&gt;</button>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <span class="legend-color safe"></span>
+                <span>سالم</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color nsfw"></span>
+                <span>محتوای نامناسب</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-color no-data"></span>
+                <span>بدون داده</span>
+            </div>
+        </div>
+        
+        <div class="calendar-wrapper">
+            <div class="calendar-weekdays">
+                <div>شنبه</div>
+                <div>یکشنبه</div>
+                <div>دوشنبه</div>
+                <div>سه‌شنبه</div>
+                <div>چهارشنبه</div>
+                <div>پنجشنبه</div>
+                <div>جمعه</div>
+            </div>
+            <div class="calendar-grid" id="calendar-grid">
+                <!-- Days will be rendered by JavaScript -->
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.CURRENT_YEAR = {{ current_year }};
+    window.CURRENT_MONTH = {{ current_month }};
+    window.CURRENT_DAY = {{ current_day }};
+</script>
+<script src="/static/js/calendar.js"></script>
+{% endblock %}

@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  web:
+    image: selfmon-web:latest
+    container_name: selfmon-web
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_USERNAME=admin
+      - APP_PASSWORD=1030
+      - MONGO_URI=mongodb://root:stlt1030@mongodb:27017
+      - DB_NAME=accountability
+      - SECRET_KEY=change-this-secret-key-in-production
+      - OPENROUTER_API_KEY=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
+      - OPENROUTER_SOCKS5_PROXY=
+      - OPENROUTER_PROXY_TOKEN=stlt1030
+    restart: unless-stopped
+    networks:
+      - li8-net
+
+networks:
+  li8-net:
+    external: true
